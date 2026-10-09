@@ -1,4 +1,4 @@
-This repo was made for personal studying purposes. It's using UTM, Ansible, bash and utmctl to create and modify the Debian VMs.
+This repo was made for personal studying purposes. It's using UTM, Ansible, bash and utmctl to create and modify the Debian VMs. Basically each lab is turned into an Ansible playbook.
 
 # Provisioning
 
