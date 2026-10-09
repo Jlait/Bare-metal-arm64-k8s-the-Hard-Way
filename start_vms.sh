@@ -2,9 +2,12 @@
 
 echo "Starting VMs in UTM"
 
-utmctl start jumpbox
-utmctl start server
-utmctl start node-0
-utmctl start node-1
+for vm in jumpbox server node-0 node-1; do
+  if [[ "$(utmctl status "$vm" 2>/dev/null)" == "started" ]]; then
+    echo "$vm already running, skipping"
+  else
+    utmctl start "$vm"
+  fi
+done
 
 echo "VMs Started"

@@ -1,0 +1,41 @@
+# First run (password auth): ansible-playbook bootstrap.yml --ask-pass --ask-become-pass
+# If sudo isn't installed in the template, add: -e ansible_become_method=su
+- name: Bootstrap VMs for Kubernetes the Hard Way
+  hosts: all
+  tasks:
+    - name: Install sudo
+      ansible.builtin.apt:
+        name: sudo
+        state: present
+        update_cache: true
+
+    - name: Allow debian passwordless sudo
+      ansible.builtin.copy:
+        dest: /etc/sudoers.d/debian
+        content: "debian ALL=(ALL) NOPASSWD:ALL\n"
+        mode: "0440"
+        validate: visudo -cf %s
+
+    - name: Authorize SSH key
+      ansible.posix.authorized_key:
+        user: debian
+        key: "{{ lookup('file', '~/.ssh/k8s-hard-way.pub') }}"
+
+    - name: Set hostname
+      ansible.builtin.hostname:
+        name: "{{ inventory_hostname }}"
+
+    - name: Set local hostname entry
+      ansible.builtin.lineinfile:
+        path: /etc/hosts
+        regexp: '^127\.0\.1\.1\s'
+        line: "127.0.1.1 {{ inventory_hostname }}.kubernetes.local {{ inventory_hostname }}"
+
+    - name: Add cluster machines to /etc/hosts
+      ansible.builtin.blockinfile:
+        path: /etc/hosts
+        marker: "# {mark} kubernetes the hard way"
+        block: |
+          {% for host in groups['server'] + groups['nodes'] %}
+          {{ hostvars[host].ansible_host }} {{ host }}.kubernetes.local {{ host }}
+          {% endfor %}
