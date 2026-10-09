@@ -1,0 +1,108 @@
+- name: Lab 02 - Set up the jumpbox
+  hosts: jumpbox
+  vars:
+    repo_dir: /root/kubernetes-the-hard-way
+    dl: "{{ repo_dir }}/downloads"
+    arch: "{{ 'arm64' if ansible_architecture == 'aarch64' else 'amd64' }}"
+    crictl_version: v1.32.0
+    containerd_version: 2.1.0-beta.0
+    cni_version: v1.6.2
+    etcd_version: v3.6.0-rc.3
+  tasks:
+    - name: Install utils
+      ansible.builtin.apt:
+        name: [wget, curl, vim, openssl, git]
+        update_cache: true
+
+    - name: Clone tutorial repo
+      ansible.builtin.git:
+        repo: https://github.com/kelseyhightower/kubernetes-the-hard-way.git
+        dest: "{{ repo_dir }}"
+        depth: 1
+        update: false
+
+    - name: Read download list
+      ansible.builtin.slurp:
+        src: "{{ repo_dir }}/downloads-{{ arch }}.txt"
+      register: download_list
+
+    - name: Create download dirs
+      ansible.builtin.file:
+        path: "{{ dl }}/{{ item }}"
+        state: directory
+        mode: "0755"
+      loop: [client, cni-plugins, controller, worker]
+
+    - name: Download binaries
+      ansible.builtin.get_url:
+        url: "{{ item }}"
+        dest: "{{ dl }}/{{ item | basename }}"
+        mode: "0644"
+      loop: "{{ (download_list.content | b64decode).splitlines() | select }}"
+
+    - name: Extract crictl
+      ansible.builtin.unarchive:
+        src: "{{ dl }}/crictl-{{ crictl_version }}-linux-{{ arch }}.tar.gz"
+        dest: "{{ dl }}/worker"
+        remote_src: true
+        creates: "{{ dl }}/worker/crictl"
+
+    - name: Extract containerd
+      ansible.builtin.unarchive:
+        src: "{{ dl }}/containerd-{{ containerd_version }}-linux-{{ arch }}.tar.gz"
+        dest: "{{ dl }}/worker"
+        remote_src: true
+        extra_opts: [--strip-components=1]
+        creates: "{{ dl }}/worker/containerd"
+
+    - name: Extract CNI plugins
+      ansible.builtin.unarchive:
+        src: "{{ dl }}/cni-plugins-linux-{{ arch }}-{{ cni_version }}.tgz"
+        dest: "{{ dl }}/cni-plugins"
+        remote_src: true
+        creates: "{{ dl }}/cni-plugins/bridge"
+
+    - name: Extract etcd
+      ansible.builtin.unarchive:
+        src: "{{ dl }}/etcd-{{ etcd_version }}-linux-{{ arch }}.tar.gz"
+        dest: "{{ dl }}"
+        remote_src: true
+        extra_opts: [--strip-components=1]
+        include:
+          - "etcd-{{ etcd_version }}-linux-{{ arch }}/etcd"
+          - "etcd-{{ etcd_version }}-linux-{{ arch }}/etcdctl"
+        creates: "{{ dl }}/etcd"
+
+    # Copy instead of mv so re-runs don't re-download the originals
+    - name: Sort binaries into folders
+      ansible.builtin.copy:
+        src: "{{ dl }}/{{ item.src }}"
+        dest: "{{ dl }}/{{ item.dest }}"
+        remote_src: true
+        mode: "0755"
+      loop:
+        - { src: etcdctl, dest: client/etcdctl }
+        - { src: kubectl, dest: client/kubectl }
+        - { src: etcd, dest: controller/etcd }
+        - { src: kube-apiserver, dest: controller/kube-apiserver }
+        - { src: kube-controller-manager, dest: controller/kube-controller-manager }
+        - { src: kube-scheduler, dest: controller/kube-scheduler }
+        - { src: kubelet, dest: worker/kubelet }
+        - { src: kube-proxy, dest: worker/kube-proxy }
+        - { src: "runc.{{ arch }}", dest: worker/runc }
+
+    - name: Install kubectl
+      ansible.builtin.copy:
+        src: "{{ dl }}/client/kubectl"
+        dest: /usr/local/bin/kubectl
+        remote_src: true
+        mode: "0755"
+
+    - name: Verify kubectl
+      ansible.builtin.command: kubectl version --client
+      register: kubectl_version
+      changed_when: false
+
+    - name: Show kubectl version
+      ansible.builtin.debug:
+        var: kubectl_version.stdout

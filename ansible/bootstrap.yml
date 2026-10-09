@@ -1,6 +1,6 @@
 # First run (password auth): ansible-playbook bootstrap.yml --ask-pass --ask-become-pass
 # If sudo isn't installed in the template, add: -e ansible_become_method=su
-- name: Bootstrap VMs for Kubernetes the Hard Way
+- name: Lab 03 - Bootstrap VMs for Kubernetes the Hard Way
   hosts: all
   tasks:
     - name: Install sudo
