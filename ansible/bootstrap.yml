@@ -58,7 +58,7 @@
       ansible.builtin.slurp:
         src: /root/.ssh/id_ed25519.pub
       register: jumpbox_pubkey
-
+      
 - name: Lab 03 - Allow root SSH from jumpbox
   hosts: server:nodes
   tasks:
