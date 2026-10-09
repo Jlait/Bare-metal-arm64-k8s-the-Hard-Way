@@ -1,0 +1,4 @@
+machines.txt
+ansible/inventory.ini
+*.utm/
+.DS_Store
